@@ -2,7 +2,7 @@ import math
 from panda3d.core import (
     NodePath, Point3, Vec4, Vec3, CardMaker,
     GeomVertexFormat, GeomVertexData, Geom, GeomTriangles, GeomNode,
-    GeomVertexWriter, BitMask32
+    GeomVertexWriter, BitMask32, CullFaceAttrib
 )
 
 def create_procedural_plane(name="proc_plane", size=1.0):
@@ -23,11 +23,11 @@ def create_procedural_cube(name="proc_cube"):
 
     verts = [
         (-0.5,-0.5,-0.5),(0.5,-0.5,-0.5),(0.5,0.5,-0.5),(-0.5,0.5,-0.5),
-        (-0.5,-0.5,0.5),(0.5,-0.5,0.5),(0.5,0.5,0.5),(-0.5,0.5,0.5),
-        (-0.5,-0.5,-0.5),(-0.5,-0.5,0.5),(0.5,-0.5,0.5),(0.5,-0.5,-0.5),
-        (0.5,0.5,-0.5),(0.5,0.5,0.5),(-0.5,0.5,0.5),(-0.5,0.5,-0.5),
-        (-0.5,0.5,-0.5),(-0.5,0.5,0.5),(-0.5,-0.5,0.5),(-0.5,-0.5,-0.5),
-        (0.5,-0.5,-0.5),(0.5,-0.5,0.5),(0.5,0.5,0.5),(0.5,0.5,-0.5),
+        (-0.5,-0.5,0.5),(-0.5,0.5,0.5),(0.5,0.5,0.5),(0.5,-0.5,0.5),
+        (-0.5,-0.5,-0.5),(0.5,-0.5,-0.5),(0.5,-0.5,0.5),(-0.5,-0.5,0.5),
+        (0.5,0.5,-0.5),(-0.5,0.5,-0.5),(-0.5,0.5,0.5),(0.5,0.5,0.5),
+        (-0.5,0.5,-0.5),(-0.5,-0.5,-0.5),(-0.5,-0.5,0.5),(-0.5,0.5,0.5),
+        (0.5,-0.5,-0.5),(0.5,0.5,-0.5),(0.5,0.5,0.5),(0.5,-0.5,0.5),
     ]
     norms = [
         (0,0,-1),(0,0,-1),(0,0,-1),(0,0,-1),
@@ -44,15 +44,19 @@ def create_procedural_cube(name="proc_cube"):
 
     tris = GeomTriangles(Geom.UHStatic)
     for i in range(0, 24, 4):
-        tris.addVertices(i + 0, i + 1, i + 2)
-        tris.addVertices(i + 0, i + 2, i + 3)
+        tris.addVertices(i + 0, i + 2, i + 1)
+        tris.addVertices(i + 0, i + 3, i + 2)
         tris.closePrimitive()
 
     geom = Geom(vdata)
     geom.addPrimitive(tris)
     node = GeomNode(name)
     node.addGeom(geom)
-    return NodePath(node)
+    np = NodePath(node)
+    
+    np.setAttrib(CullFaceAttrib.make(CullFaceAttrib.MCullNone))
+    
+    return np
 
 def create_procedural_sphere(name="proc_sphere", radius=0.5, segments=24):
     if segments < 3: segments = 3
