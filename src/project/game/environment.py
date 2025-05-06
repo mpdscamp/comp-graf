@@ -24,7 +24,7 @@ class EnvironmentManager:
             self._update_terrain_chunks, "update_terrain_chunks_task"
         )
 
-        num_elements_to_create = 30
+        num_elements_to_create = 0
         self.reactive_manager.populate_reactive_elements(
             self.static_manager,
             num_elements=num_elements_to_create
