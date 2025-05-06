@@ -229,9 +229,8 @@ class TerrainGenerator:
     
     def get_terrain_color(self, world_x, world_y, height):
         """Determine terrain color based on height and additional factors"""
-        # OPTIMIZATION: Simplified terrain color calculation
-        # Get slope by sampling nearby heights (using larger sample distance)
-        sample_dist = 2.0  # OPTIMIZED: Increased from 1.0 to 2.0
+        # Get slope by sampling nearby heights
+        sample_dist = 2.0
         h_px = self.calculate_terrain_height(world_x + sample_dist, world_y)
         h_nx = self.calculate_terrain_height(world_x - sample_dist, world_y)
         h_py = self.calculate_terrain_height(world_x, world_y + sample_dist)
@@ -258,6 +257,7 @@ class TerrainGenerator:
         # Determine base color by height
         color = grass_color # Default
         if height < water_level:
+            # Still using water color, but we never skip the geometry
             color = water_color
         elif height < beach_level:
             t = (height - water_level) / max(1e-6, beach_level - water_level)
@@ -277,7 +277,7 @@ class TerrainGenerator:
         else:
             color = snow_color
         
-        # OPTIMIZATION: Skip biome variation to save calculations
+        # Skip biome variation to save calculations
         return Vec4(
             max(0, min(1, color[0])),
             max(0, min(1, color[1])),
@@ -300,7 +300,7 @@ class TerrainGenerator:
         world_y_base = chunk_y * self.chunk_size
         
         # Get mesh detail size
-        mesh_size = self.terrain_settings.get('detail_mesh_size', 2.0)  # OPTIMIZED: Using larger segments
+        mesh_size = self.terrain_settings.get('detail_mesh_size', 2.0)
         
         # Calculate number of mesh segments in each direction
         mesh_segments = int(self.chunk_size / mesh_size)
@@ -320,11 +320,6 @@ class TerrainGenerator:
 
                 # Store heights in the order expected by create_terrain_segment
                 heights = [h_bl, h_br, h_tr, h_tl]
-
-                # Skip creating mesh if all corners are deep underwater
-                water_level = self.terrain_settings.get('water_level', -2.0)
-                if all(h < water_level - 1.0 for h in heights):
-                    continue
                 
                 # Create a terrain mesh segment
                 segment = self.create_terrain_segment(
@@ -342,7 +337,7 @@ class TerrainGenerator:
         
         # Generate additional features if enabled
         if self.terrain_settings.get('generate_features', True):
-            # OPTIMIZATION: Only generate features for central chunks to reduce load
+            # Only generate features for central chunks to reduce load
             center_dist = math.sqrt(chunk_x**2 + chunk_y**2)
             if center_dist < self.view_distance - 1:
                 self.generate_chunk_features(chunk_root, chunk_x, chunk_y)
@@ -419,7 +414,7 @@ class TerrainGenerator:
     
     def generate_chunk_features(self, chunk_root, chunk_x, chunk_y):
         """Generate additional features like rocks, trees, etc. in a chunk"""
-        # OPTIMIZATION: Skip feature generation for distant chunks
+        # Skip feature generation for distant chunks
         center_dist = math.sqrt(chunk_x**2 + chunk_y**2)
         if center_dist > self.view_distance - 1:
             return  # Skip features for distant chunks
@@ -431,8 +426,8 @@ class TerrainGenerator:
         feature_seed = self.terrain_settings.get('seed', 0) + chunk_x * 1000 + chunk_y
         random.seed(feature_seed)
         
-        # OPTIMIZATION: Reduced feature density
-        density = self.terrain_settings.get('feature_density', 0.01)  # Lower density
+        # Reduced feature density
+        density = self.terrain_settings.get('feature_density', 0.01)
         expected_features = int(self.chunk_size * self.chunk_size * density)
         
         # Generate features
@@ -447,12 +442,12 @@ class TerrainGenerator:
             # Get height at this position
             height = self.calculate_terrain_height(x_pos, y_pos)
             
-            # Skip if underwater or too steep
+            # Use a more relaxed underwater check - only skip if very deep
             water_level = self.terrain_settings.get('water_level', -2.0)
-            if height <= water_level:
+            if height < water_level - 5.0:  # Only skip if very deep underwater
                 continue
                 
-            # Sample heights around to check slope
+            # Sample heights around to check slope with a more relaxed threshold
             sample_dist = 0.5
             h_px = self.calculate_terrain_height(x_pos + sample_dist, y_pos)
             h_nx = self.calculate_terrain_height(x_pos - sample_dist, y_pos)
@@ -463,8 +458,8 @@ class TerrainGenerator:
             slope_y = (h_py - h_ny) / (2 * sample_dist)
             slope = math.sqrt(slope_x**2 + slope_y**2)
             
-            # Skip if slope is too steep for features
-            if slope > 0.7:
+            # More relaxed slope check - allow steeper terrain (0.7 -> 1.0)
+            if slope > 1.0:
                 continue
     
     def update_visible_chunks(self, player_pos):
