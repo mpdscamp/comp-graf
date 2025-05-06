@@ -351,80 +351,70 @@ class TerrainGenerator:
     
     def create_terrain_segment(self, x, y, size, heights, name):
         """Create a single terrain mesh segment (XY plane) with the given corner heights"""
-        # Create a simple plane (ensure it's XY)
-        segment_geom = geometry_utils.create_procedural_plane(name, size)
-        if not segment_geom:
-            print(f"Failed to create plane geometry for {name}")
-            return None
-
-        # Position the segment node at the center of the base square in XY plane, height 0
-        segment_node = NodePath(f"segment_node_{name}")
-        segment_node.setPos(x + size / 2, y + size / 2, 0)
-        segment_geom.reparentTo(segment_node)
-
-        # Get vertex data to modify heights
-        geom_node = segment_geom.node()
-        if geom_node.getNumGeoms() == 0:
-             print(f"Error: No geoms found in {name}")
-             segment_node.removeNode()
-             return None
-
-        geom = geom_node.modifyGeom(0)
-        vdata = geom.modifyVertexData()
+        # Create a GeomVertexData object
+        format = GeomVertexFormat.getV3n3c4()
+        vdata = GeomVertexData(name, format, Geom.UHStatic)
         
-        # Get a vertex writer for position
+        # Create writers for each column
         vertex = GeomVertexWriter(vdata, 'vertex')
+        normal = GeomVertexWriter(vdata, 'normal')
+        color = GeomVertexWriter(vdata, 'color')
         
-        # Update heights of the 4 corners (relative to the node's origin)
-        # Assumes vertex order from create_procedural_plane: BL, BR, TR, TL
+        # Get the corner heights
         h_bl, h_br, h_tr, h_tl = heights
-
-        if vdata.getNumRows() >= 4:
-            vertex.setRow(0) # Bottom-Left
-            vertex.setData3f(-size / 2, -size / 2, h_bl)
-            
-            vertex.setRow(1) # Bottom-Right
-            vertex.setData3f( size / 2, -size / 2, h_br)
-            
-            vertex.setRow(2) # Top-Right
-            vertex.setData3f( size / 2,  size / 2, h_tr)
-            
-            vertex.setRow(3) # Top-Left
-            vertex.setData3f(-size / 2,  size / 2, h_tl)
-        else:
-            print(f"Error: Not enough vertices ({vdata.getNumRows()}) in {name}")
-            segment_node.removeNode()
-            return None
-
+        
+        # Define the 4 corners of the quad (relative to segment position)
+        half_size = size / 2
+        vertex.addData3f(-half_size, -half_size, h_bl)  # Bottom-Left
+        vertex.addData3f(half_size, -half_size, h_br)   # Bottom-Right
+        vertex.addData3f(half_size, half_size, h_tr)    # Top-Right
+        vertex.addData3f(-half_size, half_size, h_tl)   # Top-Left
+        
+        # Calculate a normal vector using the cross product of two edges
+        v1 = Vec3(size, 0, h_br - h_bl)  # Edge from BL to BR
+        v2 = Vec3(0, size, h_tl - h_bl)  # Edge from BL to TL
+        
+        # Cross product gives the normal
+        n = v1.cross(v2)
+        n.normalize()
+        
+        # Set the same normal for all vertices
+        for i in range(4):
+            normal.addData3f(n)
+        
         # Calculate average height and position for coloring
         avg_height = sum(heights) / 4.0
         avg_x = x + size/2
         avg_y = y + size/2
         
-        # Set color based on height and other factors (OPTIMIZED: faster color calculation)
-        color = self.get_terrain_color(avg_x, avg_y, avg_height)
-        segment_geom.setColor(color)
-
-        # OPTIMIZATION: More efficient normal calculation
-        normal_rewriter = GeomVertexRewriter(vdata, 'normal')
+        # Get color based on the terrain's height and position
+        terrain_color = self.get_terrain_color(avg_x, avg_y, avg_height)
         
-        # Calculate two edges of the quad
-        v1 = Vec3(size, 0, h_br - h_bl)  # Edge from BL to BR
-        v2 = Vec3(0, size, h_tl - h_bl)  # Edge from BL to TL
+        # Apply the color to all vertices
+        for i in range(4):
+            color.addData4f(terrain_color)
         
-        # Cross product gives the normal
-        normal = v1.cross(v2)
-        normal.normalize()
+        # Create the triangles (two triangles make a quad)
+        tris = GeomTriangles(Geom.UHStatic)
         
-        # Apply the normal to all vertices (OPTIMIZATION: Only update if needed)
-        try:
-            for i in range(vdata.getNumRows()):
-                normal_rewriter.setRow(i)
-                normal_rewriter.setData3f(normal)
-        except Exception as e:
-            # Fallback if normal writing fails
-            print(f"Warning: Normal writing failed: {e}, continuing without normal update")
-
+        # First triangle: Bottom-Left, Bottom-Right, Top-Right (0, 1, 2)
+        tris.addVertices(0, 1, 2)
+        
+        # Second triangle: Bottom-Left, Top-Right, Top-Left (0, 2, 3)
+        tris.addVertices(0, 2, 3)
+        
+        # Create the Geom object with triangles
+        geom = Geom(vdata)
+        geom.addPrimitive(tris)
+        
+        # Create the GeomNode and add the Geom
+        gnode = GeomNode(name)
+        gnode.addGeom(geom)
+        
+        # Create a NodePath and set its position
+        segment_node = NodePath(gnode)
+        segment_node.setPos(x + size / 2, y + size / 2, 0)
+        
         return segment_node
     
     def generate_chunk_features(self, chunk_root, chunk_x, chunk_y):
