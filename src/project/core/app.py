@@ -89,6 +89,9 @@ class ReactiveApp(ShowBase):
         self._setup_collision_events()
         self.player = PlayerController(self)
         
+        if self.environment_manager:
+            self.environment_manager.set_player(self.player)
+
         self.camera_system.setup(self.player)
 
         self.game_active = True

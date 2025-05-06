@@ -18,13 +18,50 @@ class EnvironmentManager:
         self.static_manager = StaticEnvironmentManager(app, self.static_root)
         self.reactive_manager = ReactiveManager(app, self.reactive_root)
 
+        self.player = None
+
+        self.terrain_update_task = self.app.taskMgr.add(
+            self._update_terrain_chunks, "update_terrain_chunks_task"
+        )
+
         num_elements_to_create = 30
         self.reactive_manager.populate_reactive_elements(
             self.static_manager,
             num_elements=num_elements_to_create
         )
 
-        print("EnvironmentManager initialized with refactored components.")
+        print("EnvironmentManager initialized.")
+
+    def _update_terrain_chunks(self, task):
+        """Task that updates visible terrain chunks based on player position"""
+        if (self.app.game_paused or not self.app.game_active or 
+            not hasattr(self, 'static_manager') or 
+            not self.static_manager or
+            not hasattr(self.static_manager, 'terrain_generator') or
+            not self.static_manager.terrain_generator):
+            return task.cont
+        
+        # Get player position
+        player_pos = None
+        if self.player and hasattr(self.player, 'player_root') and self.player.player_root:
+            player_pos = self.player.player_root.getPos(self.render)
+        
+        # Update terrain chunks if player position available
+        if player_pos:
+            self.static_manager.terrain_generator.update_visible_chunks(player_pos)
+        
+        # Run this task every 0.5 seconds
+        return task.again
+    
+    def set_player(self, player):
+        """Set the player reference for terrain updates"""
+        self.player = player
+        
+        # Force an initial terrain update
+        if (self.player and hasattr(self.static_manager, 'terrain_generator') and 
+            self.static_manager.terrain_generator):
+            player_pos = self.player.player_root.getPos(self.render)
+            self.static_manager.terrain_generator.update_visible_chunks(player_pos)
 
     def handle_collision_enter(self, entry):
         if self.reactive_manager:

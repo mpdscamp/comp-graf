@@ -7,7 +7,6 @@ from direct.interval.IntervalManager import ivalMgr
 
 from .sky_generator import SkyGenerator
 from .terrain_generator import TerrainGenerator
-from .structure_generator import StructureGenerator
 
 class StaticEnvironmentManager:
     """
@@ -41,18 +40,12 @@ class StaticEnvironmentManager:
 
         self.sky_generator = SkyGenerator(root_node=self.render, **common_args)
         self.terrain_generator = TerrainGenerator(root_node=self.root_node, **common_args)
-        self.structure_generator = StructureGenerator(
-            root_node=self.root_node,
-            terrain_generator=self.terrain_generator,
-            **common_args
-        )
 
         self._setup_lighting()
         self._add_fog_effect()
 
         self.sky_generator.generate_sky()
         self.terrain_generator.generate_terrain_and_features()
-        self.structure_generator.populate_structures()
 
         print("StaticEnvironmentManager initialized.")
 
@@ -63,19 +56,28 @@ class StaticEnvironmentManager:
         print("Setting up global lighting...")
         ambient_color = self._get_palette_color('ambient')
         dir_color = self._get_palette_color('directional')
-
+        
         ambient_light = AmbientLight("ambient_light")
-        ambient_light.setColor(ambient_color)
+        ambient_light.setColor(ambient_color * 1.2)
         self.ambient_light_np = self.render.attachNewNode(ambient_light)
         self.render.setLight(self.ambient_light_np)
         self.static_elements.append(self.ambient_light_np)
 
         directional_light = DirectionalLight("directional_light")
         directional_light.setColor(dir_color)
+        directional_light.setShadowCaster(True, 1024, 1024)
         self.directional_light_np = self.render.attachNewNode(directional_light)
-        self.directional_light_np.setHpr(-60, -45, 0)
+        self.directional_light_np.setHpr(-30, -60, 0)
         self.render.setLight(self.directional_light_np)
         self.static_elements.append(self.directional_light_np)
+        
+        fill_light = DirectionalLight("fill_light")
+        fill_color = dir_color * 0.4
+        fill_light.setColor(fill_color)
+        self.fill_light_np = self.render.attachNewNode(fill_light)
+        self.fill_light_np.setHpr(120, -30, 0)
+        self.render.setLight(self.fill_light_np)
+        self.static_elements.append(self.fill_light_np)
 
         print("Global lighting setup complete.")
 
@@ -92,15 +94,16 @@ class StaticEnvironmentManager:
 
     def get_terrain_height(self, nx, ny):
         if self.terrain_generator:
-            return self.terrain_generator.calculate_terrain_height(nx, ny)
+            # Convert from normalized coordinates to world coordinates
+            terrain_size = self.env_consts.get('TERRAIN_SIZE', 200.0)
+            world_x = nx * terrain_size / 2
+            world_z = ny * terrain_size / 2
+            return self.terrain_generator.calculate_terrain_height(world_x, world_z)
         return 0
 
     def cleanup(self):
         print("Cleaning up StaticEnvironmentManager...")
 
-        if hasattr(self, 'structure_generator') and self.structure_generator:
-            self.structure_generator.cleanup()
-            self.structure_generator = None
         if hasattr(self, 'terrain_generator') and self.terrain_generator:
             self.terrain_generator.cleanup()
             self.terrain_generator = None

@@ -58,7 +58,12 @@ class SettingsManager:
                         "structure_secondary": [0.5, 0.3, 0.7, 1.0],
                         "crystal": [0.6, 0.8, 1.0, 0.8],
                         "accent_glow": [1.0, 0.7, 0.3, 1.0],
-                        "accent_beam": [1.0, 0.8, 0.5, 0.7]
+                        "accent_beam": [1.0, 0.8, 0.5, 0.7],
+                        "water": [0.1, 0.3, 0.6, 0.7],
+                        "beach": [0.8, 0.7, 0.5, 1.0],
+                        "grass": [0.3, 0.5, 0.2, 1.0],
+                        "rock": [0.5, 0.4, 0.3, 1.0],
+                        "snow": [0.9, 0.9, 0.95, 1.0]
                     },
                     "procedural_generation": {
                         "sky": {
@@ -83,6 +88,22 @@ class SettingsManager:
                             "terrain_color_mid_high_threshold": 0.66,
                             "terrain_min_height": -5.0,
                             "terrain_max_height": 5.0
+                        },
+                        "terrain_generation": {
+                            "seed": 12345,
+                            "chunk_size": 16,
+                            "view_distance": 5,
+                            "height_scale": 15.0,
+                            "noise_scale": 0.01,
+                            "octaves": 6,
+                            "persistence": 0.5,
+                            "lacunarity": 2.0,
+                            "water_level": -2.0,
+                            "biome_scale": 0.005,
+                            "feature_density": 0.03,
+                            "detail_mesh_size": 1.0,
+                            "use_textures": False,
+                            "generate_features": True
                         },
                         "floating_island": {
                             "base_segments": 8,
