@@ -5,10 +5,11 @@ from panda3d.core import (
     CollisionRay, CollisionHandlerQueue, CollisionTraverser
 )
 from direct.task.Task import Task
+from direct.actor.Actor import Actor
 from direct.showbase.DirectObject import DirectObject
 from panda3d.core import ClockObject
 import math
-from ..utils.geometry_utils import create_simple_player_model
+from ..utils.geometry_utils import create_player_model
 
 globalClock = ClockObject.getGlobalClock()
 
@@ -27,14 +28,12 @@ class PlayerController(DirectObject):
         self.player_root.setPos(0, 0, 5.0)
         print(f"PlayerRoot (Physics Root at Feet) created at {self.player_root.getPos()}")
 
-        self.player_model = create_simple_player_model("PlayerVisualModel")
-        if self.player_model:
-            self.player_model.reparentTo(self.player_root)
-            print("Player visual model created and parented to PlayerRoot.")
-        else:
-            print("ERROR: Failed to create player visual model!")
-
-        self.move_speed = self.player_consts.get('MOVE_SPEED', 10.0)
+        self.player_model, self.player_anims = create_player_model("PlayerVisualModel")
+        if not self.player_model:
+            raise RuntimeError("failed to load player model")
+        
+        self.player_model.reparentTo(self.player_root)
+        self.move_speed = 5.0
         self.turn_rate = self.player_consts.get('TURN_RATE', 360.0)
         self.current_heading = 0.0
         self.target_heading = 0.0
@@ -42,6 +41,7 @@ class PlayerController(DirectObject):
         self.move_backward = False
         self.strafe_left = False
         self.strafe_right = False
+        self.is_walking = False
 
         self.collider_node = None
         self.collider_np = None
@@ -287,6 +287,17 @@ class PlayerController(DirectObject):
                 self.air_time += dt
             self.is_grounded = False
 
+        if isinstance(self.player_model, Actor):
+            walk_anim = self.player_anims[0]
+            if is_moving:
+                if not self.is_walking:
+                    self.player_model.loop(walk_anim)
+                    self.is_walking = True
+            else:
+                if self.is_walking:
+                    self.player_model.unloadAnims()
+                    self.is_walking = False
+        
         return Task.cont
 
     def get_collider_nodepath(self):

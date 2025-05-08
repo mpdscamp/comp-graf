@@ -1,4 +1,5 @@
 import math
+from ..utils.model_importer import import_model
 from panda3d.core import (
     NodePath, Point3, Vec4, Vec3, CardMaker,
     GeomVertexFormat, GeomVertexData, Geom, GeomTriangles, GeomNode,
@@ -257,30 +258,12 @@ def apply_default_material(nodepath, shininess=16, specular_color=Vec4(0.2, 0.2,
 
     nodepath.setTwoSided(False) # Ensure single-sided rendering unless needed
 
-def create_simple_player_model(name="player_model", body_color=Vec4(0.3, 0.5, 0.8, 1), head_color=Vec4(0.8, 0.7, 0.6, 1)):
-    """Creates a simple snowman-like player model."""
-    player_geom_root = NodePath(name)
-
-    body_radius = 0.35
-    body_height = 1.0
-    body = create_procedural_cylinder(name + "_body", radius=body_radius, height=body_height, segments=12)
-    if body:
-        body.reparentTo(player_geom_root)
-        body.setPos(0, 0, body_height / 2) # Position center of cylinder at half height
-        body.setColor(body_color)
-        body.setCollideMask(BitMask32(0))
-        apply_default_material(body) # Apply material
-
-    head_radius = 0.3
-    head = create_procedural_sphere(name + "_head", radius=head_radius, segments=16)
-    if head:
-        head.reparentTo(player_geom_root)
-        head.setPos(0, 0, body_height + head_radius * 0.8) # Position head above body
-        head.setColor(head_color)
-        head.setCollideMask(BitMask32(0))
-        apply_default_material(head) # Apply material
-
-    return player_geom_root
+def create_player_model(name="player_model", body_color=Vec4(0.3, 0.5, 0.8, 1), head_color=Vec4(0.8, 0.7, 0.6, 1)):
+    path = "shrek.glb"
+    root = NodePath(name)
+    model_node, anim_names = import_model(path, parent=root, scale=0.02)
+    model_node.setHpr(180, 0, 0)
+    return model_node, anim_names
 
 def apply_crystal_material(nodepath, shininess=40, specular_color=Vec4(0.8, 0.8, 1.0, 1)):
     """Apply a shiny material suitable for crystals."""

@@ -22,7 +22,7 @@ class SettingsManager:
             },
             "game_constants": {
                 "player": {
-                    "MOVE_SPEED": 10.0, "HEIGHT": 1.8, "RADIUS": 0.4, "JUMP_FORCE": 12.0, "GRAVITY": 30.0, "TURN_RATE": 360.0, "HEAD_HEIGHT_OFFSET": -0.2
+                    "MOVE_SPEED": 5.0, "HEIGHT": 1.8, "RADIUS": 0.4, "JUMP_FORCE": 12.0, "GRAVITY": 30.0, "TURN_RATE": 360.0, "HEAD_HEIGHT_OFFSET": -0.2
                 },
                 "camera": {
                     "MIN_PITCH": -40.0,
