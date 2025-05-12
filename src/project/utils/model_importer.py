@@ -2,6 +2,9 @@ import os
 from direct.actor.Actor import Actor
 from panda3d.core import BitMask32, NodePath
 
+from direct.showbase.ShowBase import ShowBase
+base: ShowBase
+
 """
 Load a model or actor from `path`.
 Returns a tuple (model_node, anim_names).
@@ -14,7 +17,7 @@ def import_model(path: str, parent: NodePath = None, scale: float = 1.0, collide
         here = os.path.dirname(__file__)
         path = os.path.abspath(os.path.join(here, "..", "models", path))
 
-    parent = parent or render
+    parent = parent or base.render
     anim_names = []
     model_node = None
 
@@ -30,7 +33,7 @@ def import_model(path: str, parent: NodePath = None, scale: float = 1.0, collide
         actor = None
 
     if model_node is None:
-        model_node = loader.loadModel(path)
+        model_node = base.loader.loadModel(path)
 
     model_node.reparentTo(parent)
     model_node.setScale(scale)
