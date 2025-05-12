@@ -34,6 +34,16 @@ class PlayerController(DirectObject):
         
         self.player_model.reparentTo(self.player_root)
         self.move_speed = 5.0
+        self.sprint_multiplier = 1.7  # Sprint speed multiplier
+        self.dash_force = 15.0  # Dash speed
+        self.dash_duration = 0.3  # How long the dash lasts in seconds
+        self.dash_cooldown = 2.0  # Cooldown between dashes in seconds
+        self.current_dash_cooldown = 0.0  # Current dash cooldown timer
+        self.is_dashing = False  # Flag to track if currently dashing
+        self.dash_timer = 0.0  # Timer to track dash duration
+        self.dash_direction = Vec3(0)  # Direction of the dash
+        self.is_sprinting = False  # Flag to track if sprinting
+        
         self.turn_rate = self.player_consts.get('TURN_RATE', 360.0)
         self.current_heading = 0.0
         self.target_heading = 0.0
@@ -134,6 +144,14 @@ class PlayerController(DirectObject):
         self.accept("d", self._set_move_state, ["strafe_right", True])
         self.accept("d-up", self._set_move_state, ["strafe_right", False])
         self.accept("space", self.jump)
+        
+        # Add sprinting (hold ctrl) inputs
+        self.accept("control", self._set_sprint_state, [True])
+        self.accept("control-up", self._set_sprint_state, [False])
+        
+        # Add dash (press shift) input
+        self.accept("shift", self.dash)
+        
         print("Player input setup complete.")
 
     def _set_move_state(self, key, is_down):
@@ -141,17 +159,72 @@ class PlayerController(DirectObject):
         elif key == "backward": self.move_backward = is_down
         elif key == "strafe_left": self.strafe_left = is_down
         elif key == "strafe_right": self.strafe_right = is_down
+    
+    def _set_sprint_state(self, is_down):
+        """Set the sprint state based on ctrl key state"""
+        self.is_sprinting = is_down
+        if self.debug_mode and is_down:
+            print("Sprinting activated")
+        elif self.debug_mode:
+            print("Sprinting deactivated")
+    
+    def dash(self):
+        """Initiates a dash in the current movement direction"""
+        if self.current_dash_cooldown > 0:
+            if self.debug_mode:
+                print(f"Dash on cooldown: {self.current_dash_cooldown:.2f} seconds remaining")
+            return
+            
+        # Calculate dash direction based on current movement or facing direction
+        dash_direction = Vec3(0)
+        if self.app.camera:
+            cam_quat = self.app.camera.getQuat(self.render)
+            cam_forward = cam_quat.getForward()
+            cam_right = cam_quat.getRight()
+            cam_forward.z = 0
+            cam_right.z = 0
+            cam_forward.normalize()
+            cam_right.normalize()
+
+            if self.move_forward: dash_direction += cam_forward
+            if self.move_backward: dash_direction -= cam_forward
+            if self.strafe_left: dash_direction -= cam_right
+            if self.strafe_right: dash_direction += cam_right
+        
+        # If no movement keys pressed, dash forward
+        if dash_direction.lengthSquared() < 0.01:
+            player_quat = self.player_root.getQuat(self.render)
+            dash_direction = player_quat.getForward()
+            dash_direction.z = 0
+        
+        # Only dash if we have a valid direction
+        if dash_direction.lengthSquared() > 0.01:
+            dash_direction.normalize()
+            self.dash_direction = dash_direction
+            self.is_dashing = True
+            self.dash_timer = self.dash_duration
+            self.current_dash_cooldown = self.dash_cooldown
+            
+            if self.debug_mode:
+                print(f"Dash initiated in direction: {dash_direction}")
 
     def jump(self):
         """Initiates a jump if the player is grounded."""
         if self.debug_mode:
-            print(f"Jump button pressed. Is grounded: {self.is_grounded}, Cooldown: {self.jump_cooldown}")
+            print(f"Jump button pressed. Is grounded: {self.is_grounded}, Cooldown: {self.jump_cooldown}, Sprinting: {self.is_sprinting}")
         
         if self.is_grounded and self.jump_cooldown <= 0:
             if self.debug_mode:
                 print(f"Starting jump with force: {self.jump_force}")
             
-            self.vertical_velocity = self.jump_force
+            # Apply additional jump force when sprinting
+            jump_force = self.jump_force
+            if self.is_sprinting:
+                jump_force *= 1.2  # Optional: Give a bit more height to sprint jumps
+                if self.debug_mode:
+                    print(f"Sprint jump with increased force: {jump_force}")
+            
+            self.vertical_velocity = jump_force
             self.is_grounded = False
             
             self.player_root.setZ(self.player_root.getZ() + 0.2)
@@ -209,14 +282,32 @@ class PlayerController(DirectObject):
         pos_before_update = self.player_root.getPos()
         was_grounded = self.is_grounded
 
+        # Update timers and cooldowns
         if self.jump_cooldown > 0:
             self.jump_cooldown -= 1
             if self.debug_mode:
                 print(f"Jump cooldown: {self.jump_cooldown}, Height: {self.player_root.getZ():.2f}")
+        
+        # Update dash cooldown
+        if self.current_dash_cooldown > 0:
+            self.current_dash_cooldown -= dt
+            if self.current_dash_cooldown < 0:
+                self.current_dash_cooldown = 0
+                if self.debug_mode:
+                    print("Dash cooldown reset - ready to dash again")
+        
+        # Update dash timer if dashing
+        if self.is_dashing:
+            self.dash_timer -= dt
+            if self.dash_timer <= 0:
+                self.is_dashing = False
+                if self.debug_mode:
+                    print("Dash complete")
 
         if not self.is_grounded or self.vertical_velocity > 0:
             self.vertical_velocity -= self.gravity * dt
 
+        # Determine movement direction
         move_direction = Vec3(0)
         is_moving = False
         if self.app.camera:
@@ -235,7 +326,8 @@ class PlayerController(DirectObject):
 
             is_moving = move_direction.lengthSquared() > 0.01
 
-        if is_moving:
+        # Turn the player model to face the movement direction
+        if is_moving and not self.is_dashing:
             move_direction.normalize()
             self.target_heading = math.degrees(math.atan2(-move_direction.x, move_direction.y))
 
@@ -247,17 +339,30 @@ class PlayerController(DirectObject):
             self.player_root.setH(new_h)
             self.current_heading = new_h
 
+        # Calculate horizontal movement
         horizontal_move_delta = Vec3(0)
-        if is_moving:
-            horizontal_move_delta = move_direction * self.move_speed * dt
+        
+        # Dash takes precedence over normal movement
+        if self.is_dashing:
+            horizontal_move_delta = self.dash_direction * self.dash_force * dt
+        elif is_moving:
+            # Apply sprint multiplier if sprinting
+            current_speed = self.move_speed
+            if self.is_sprinting:
+                current_speed *= self.sprint_multiplier
+                
+            horizontal_move_delta = move_direction * current_speed * dt
         else:
             horizontal_move_delta = Vec3(0)
 
+        # Calculate vertical movement (gravity/jumping)
         vertical_move_delta = Vec3(0, 0, self.vertical_velocity * dt)
 
+        # Combine movements
         final_delta = horizontal_move_delta + vertical_move_delta
         self.player_root.setPos(pos_before_update + final_delta)
 
+        # Ground detection
         if self.jump_cooldown > 0:
             is_now_grounded = False
             ground_z_world = None
@@ -266,6 +371,7 @@ class PlayerController(DirectObject):
         else:
             is_now_grounded, ground_z_world = self._check_ground()
 
+        # Ground handling
         if is_now_grounded:
             current_z = self.player_root.getZ()
             z_diff = ground_z_world - current_z
@@ -287,6 +393,7 @@ class PlayerController(DirectObject):
                 self.air_time += dt
             self.is_grounded = False
 
+        # Animation handling
         if isinstance(self.player_model, Actor):
             walk_anim = self.player_anims[0]
             if is_moving:
