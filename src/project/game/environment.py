@@ -50,6 +50,28 @@ class EnvironmentManager:
         All texture images (.png, .jpg, .jpeg) will stretch to platform dimensions.
         """
         platforms = [
+            # Plataforma inicial (spawn platform)
+            {
+                'name': 'spawn_platform',
+                'pos': (-40, 40, 36),
+                'size': (25, 25, 0.2),
+                'texture': 'yob.png',
+            },
+            # Plataforma para facilitar o início do jogo (primeiro destino)
+            {
+                'name': 'first_target',
+                'pos': (-35, 30, 36),
+                'size': (5, 5, 0.2),
+                'texture': 'wood_plank.png',
+            },
+            # Ponte conectando plataformas
+            {
+                'name': 'bridge1',
+                'pos': (-30, 20, 36),
+                'size': (3, 15, 0.2),
+                'texture': 'wood_plank.png',
+            },
+            # Resto das plataformas (originais)
             {
                 'name': 'launch_pad',
                 'pos': (2, 2, 2),
@@ -138,12 +160,6 @@ class EnvironmentManager:
                 }
             },
             {
-                'name': 's3',
-                'pos': (-40, 40, 36),
-                'size': (25, 25, 0.2),
-                'texture': 'yob.png',
-            },
-            {
                 'name': 'shuttle',
                 'pos': (15, 15, 6),
                 'size': (2, 5, 1),
@@ -161,6 +177,7 @@ class EnvironmentManager:
                 'rotation': { 'axis': (1, 0, 0), 'speed': 600 },
             },
         ]
+
 
         for cfg in platforms:
             self._spawn_platform(cfg)

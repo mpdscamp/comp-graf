@@ -1,5 +1,5 @@
-from collections import deque
 import math
+from collections import deque
 
 from panda3d.core import (
     Point3, Vec3, BitMask32, CollisionNode, CollisionCapsule,
@@ -30,7 +30,8 @@ class PlayerController(DirectObject):
         self.collision_consts = self.app.settings_manager.constants.get('collision', {})
 
         self.player_root = self.render.attachNewNode("PlayerRoot")
-        self.player_root.setPos(0, 0, 5.0)
+        # Posição inicial do jogador para uma plataforma existente
+        self.player_root.setPos(-40, 40, 37.0)  # Plataforma segura com nome 's3'
         print(f"PlayerRoot (Physics Root at Feet) created at {self.player_root.getPos()}")
 
         self.player_model, self.player_anims = create_player_model("PlayerVisualModel")
@@ -48,6 +49,12 @@ class PlayerController(DirectObject):
         self.dash_timer = 0.0  # Timer to track dash duration
         self.dash_direction = Vec3(0)  # Direction of the dash
         self.is_sprinting = False  # Flag to track if sprinting
+        
+        # Variáveis para o double-tap shift
+        self._last_shift_time = 0.0
+        self._shift_tap_threshold = 0.3
+        self._dash_timer = 0.0
+        self._dash_cd_timer = 0.0
         
         self.turn_rate = self.player_consts.get('TURN_RATE', 360.0)
         self.current_heading = 0.0
@@ -126,7 +133,7 @@ class PlayerController(DirectObject):
         self.ground_ray_node.addSolid(ray_shape)
 
         self.ground_ray_node.setFromCollideMask(mask_ground)
-        self.ground_ray_node.setIntoCollideMask(BitMask32(0))
+        self.ground_ray_node.setIntoCollideMask(BitMask32.allOff())
 
         self.ground_ray_np = self.player_root.attachNewNode(self.ground_ray_node)
         # self.ground_ray_np.show()
@@ -147,11 +154,35 @@ class PlayerController(DirectObject):
         print(f"  Ground Ray From Mask: {self.ground_ray_node.getFromCollideMask()}")
 
     def _setup_input(self):
-        """ Only Shift (for sprint/dash) and Space (for jump). """
-        self.accept("shift",    self._on_shift,  [True])
-        self.accept("shift-up", self._on_shift,  [False])
-        self.accept("space",    self.jump)
+        """ Configuração de eventos de input para teclas de movimento e ações. """
+        # Teclas de movimento WASD
+        self.accept("w", self._set_move_forward, [True])
+        self.accept("w-up", self._set_move_forward, [False])
+        self.accept("s", self._set_move_backward, [True])
+        self.accept("s-up", self._set_move_backward, [False])
+        self.accept("a", self._set_strafe_left, [True])
+        self.accept("a-up", self._set_strafe_left, [False])
+        self.accept("d", self._set_strafe_right, [True])
+        self.accept("d-up", self._set_strafe_right, [False])
+        
+        # Teclas de ação
+        self.accept("shift", self._on_shift, [True])
+        self.accept("shift-up", self._on_shift, [False])
+        self.accept("space", self.jump)
         self.accept("shift-space", self.jump)
+    
+    # Métodos para definir movimentos
+    def _set_move_forward(self, is_down):
+        self.move_forward = is_down
+        
+    def _set_move_backward(self, is_down):
+        self.move_backward = is_down
+        
+    def _set_strafe_left(self, is_down):
+        self.strafe_left = is_down
+        
+    def _set_strafe_right(self, is_down):
+        self.strafe_right = is_down
 
     def _on_shift(self, is_down):
         now = globalClock.getFrameTime()
@@ -160,7 +191,7 @@ class PlayerController(DirectObject):
             # double-tap detection
             if now - self._last_shift_time < self._shift_tap_threshold \
                and self._dash_cd_timer <= 0:
-                self._dash_timer    = self.dash_duration
+                self._dash_timer = self.dash_duration
                 self._dash_cd_timer = self.dash_cooldown
             self._last_shift_time = now
         else:
@@ -248,20 +279,24 @@ class PlayerController(DirectObject):
                 print(f"Jump cooldown: {self.jump_cooldown}, Height: {self.player_root.getZ():.2f}")
         
         # Update dash cooldown
-        if self.current_dash_cooldown > 0:
-            self.current_dash_cooldown -= dt
-            if self.current_dash_cooldown < 0:
-                self.current_dash_cooldown = 0
+        if self._dash_cd_timer > 0:
+            self._dash_cd_timer -= dt
+            if self._dash_cd_timer < 0:
+                self._dash_cd_timer = 0
                 if self.debug_mode:
                     print("Dash cooldown reset - ready to dash again")
         
         # Update dash timer if dashing
-        if self.is_dashing:
-            self.dash_timer -= dt
-            if self.dash_timer <= 0:
+        if self._dash_timer > 0:
+            self._dash_timer -= dt
+            self.is_dashing = True
+            if self._dash_timer <= 0:
+                self._dash_timer = 0
                 self.is_dashing = False
                 if self.debug_mode:
                     print("Dash complete")
+        else:
+            self.is_dashing = False
 
         if not self.is_grounded or self.vertical_velocity > 0:
             self.vertical_velocity -= self.gravity * dt
@@ -303,7 +338,12 @@ class PlayerController(DirectObject):
         
         # Dash takes precedence over normal movement
         if self.is_dashing:
-            horizontal_move_delta = self.dash_direction * self.dash_force * dt
+            if self.dash_direction.lengthSquared() > 0.01:
+                horizontal_move_delta = self.dash_direction * self.dash_force * dt
+            else:
+                # Se dash_direction não estiver definido, usar a direção de movimento atual
+                self.dash_direction = move_direction if move_direction.lengthSquared() > 0.01 else Vec3(0, 1, 0)
+                horizontal_move_delta = self.dash_direction * self.dash_force * dt
         elif is_moving:
             # Apply sprint multiplier if sprinting
             current_speed = self.move_speed
@@ -370,7 +410,7 @@ class PlayerController(DirectObject):
                 return Task.cont
 
         # Animation handling
-        if isinstance(self.player_model, Actor):
+        if isinstance(self.player_model, Actor) and self.player_anims:
             walk_anim = self.player_anims[0]
             if is_moving:
                 if not self.is_walking:
@@ -378,8 +418,12 @@ class PlayerController(DirectObject):
                     self.is_walking = True
             else:
                 if self.is_walking:
-                    self.player_model.unloadAnims()
-                    self.is_walking = False
+                    try:
+                        self.player_model.stop()
+                        self.is_walking = False
+                    except:
+                        # Fallback se unloadAnims causar erro
+                        self.is_walking = False
         
         return Task.cont
         
@@ -405,7 +449,7 @@ class PlayerController(DirectObject):
             
         # Show the game over screen with the time survived
         if hasattr(self.app, 'game_over') and self.app.game_over:
-            self.app.game_over.show(elapsed_time, message)
+            self.app.game_over.show(elapsed_time)
             # Hide HUD but keep the game technically active
             if hasattr(self.app, 'hud') and self.app.hud:
                 if hasattr(self.app.hud, 'hide_all'):

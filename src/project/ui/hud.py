@@ -52,19 +52,64 @@ class HeadsUpDisplayUI:
         )
         self.timer_display.setDepthTest(False)
         self.timer_display.setDepthWrite(False)
-        self.timer_display.hide()
+        
+        # Inicializa o task para atualizar o timer
+        self.app.taskMgr.add(self.update_timer, "update_timer_task")
 
     def show(self):
         if hasattr(self, 'crosshair') and self.crosshair: self.crosshair.show()
+        if hasattr(self, 'timer_display') and self.timer_display: self.timer_display.show()
         if hasattr(self, 'minimap') and self.minimap: self.minimap.unstash()
         for label in getattr(self, 'minimap_labels', []):
              if label: label.unstash()
+        
+        # Iniciar o timer quando o jogo começa
+        self.start_timer()
 
     def hide(self):
         if hasattr(self, 'crosshair') and self.crosshair: self.crosshair.hide()
+        if hasattr(self, 'timer_display') and self.timer_display: self.timer_display.hide()
         if hasattr(self, 'minimap') and self.minimap: self.minimap.stash()
         for label in getattr(self, 'minimap_labels', []):
              if label: label.stash()
+        
+        # Parar o timer quando o jogo é escondido (pausado ou finalizado)
+        self.stop_timer()
+
+    def start_timer(self):
+        """Inicia o timer do jogo"""
+        import time
+        self.start_time = time.time()
+        self.is_timer_active = True
+        
+    def stop_timer(self):
+        """Para o timer do jogo"""
+        self.is_timer_active = False
+        
+    def update_timer(self, task):
+        """Atualiza o timer do jogo"""
+        if self.is_timer_active and self.app.game_active and not self.app.game_paused:
+            import time
+            elapsed = time.time() - self.start_time
+            self.game_time = elapsed
+            
+            # Atualiza o texto do timer
+            minutes = int(elapsed // 60)
+            seconds = int(elapsed % 60)
+            if hasattr(self, 'timer_display') and self.timer_display:
+                self.timer_display.setText(f"Time: {minutes}:{seconds:02d}")
+                
+        return task.cont
+        
+    def get_elapsed_time(self):
+        """Retorna o tempo decorrido em segundos"""
+        return self.game_time
+
+    def hide_all(self):
+        """Esconde todos os elementos do HUD, incluindo o timer"""
+        self.hide()
+        if hasattr(self, 'timer_display') and self.timer_display:
+            self.timer_display.hide()
 
     def show_crosshair(self):
         if hasattr(self, 'crosshair') and self.crosshair:
