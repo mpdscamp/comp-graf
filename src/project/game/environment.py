@@ -50,31 +50,115 @@ class EnvironmentManager:
         All texture images (.png, .jpg, .jpeg) will stretch to platform dimensions.
         """
         platforms = [
-            # static launch pad
             {
                 'name': 'launch_pad',
-                'pos': (5, 10, 2),
+                'pos': (2, 2, 2),
                 'size': (2, 1, 0.2),
                 'texture': 'wood_plank.png',
             },
-            # rotating spinner
             {
                 'name': 'spinner',
-                'pos': (12, 15, 3),
+                'pos': (4, 6, 10),
                 'size': (3, 3, 0.3),
                 'texture': 'metal_plate.png',
                 'rotation': { 'axis': (0, 0, 1), 'speed': 30 },
             },
-            # moving platform
             {
-                'name': 'shuttle',
-                'pos': (20, 5, 1),
-                'size': (2, 1, 0.2),
+                'name': 's1',
+                'pos': (0, 0, 16),
+                'size': (1, 1, 1),
+                'texture': 'wood_plank.png',
+            },
+            {
+                'name': 's2',
+                'pos': (-8, -4, 18),
+                'size': (8, 1, 0.2),
+                'texture': 'wood_plank.png',
+            },
+            {
+                'name': 's3',
+                'pos': (-25, -4, 20),
+                'size': (8, 1, 0.2),
+                'texture': 'wood_plank.png',
+            },
+            {
+                'name': 'w1',
+                'pos': (-13.5, -8, 16),
+                'size': (0.2, 8, 8),
+                'texture': 'wood_plank.png',
+            },
+            {
+                'name': 'm1',
+                'pos': (-25, 2, 22),
+                'size': (4, 4, 0.2),
                 'texture': 'concrete.jpg',
                 'movement': {
-                    'points': [(20, 5, 1), (25, 5, 1), (25, 10, 1), (20, 10, 1)],
-                    'duration': 8,
+                    'points': [(-25, 2, 22), (-17, 2, 22)],
+                    'duration': 20,
                 }
+            },
+            {
+                'name': 'm2',
+                'pos': (-25, 10, 24),
+                'size': (4, 4, 0.2),
+                'texture': 'concrete.jpg',
+                'movement': {
+                    'points': [(-25, 10, 24), (-17, 10, 24)],
+                    'duration': 13,
+                }
+            },
+            {
+                'name': 'm3',
+                'pos': (-25, 18, 26),
+                'size': (4, 4, 0.2),
+                'texture': 'concrete.jpg',
+                'movement': {
+                    'points': [(-25, 18, 26), (-17, 18, 26)],
+                    'duration': 7,
+                }
+            },
+            {
+                'name': 'm4',
+                'pos': (-25, 26, 28),
+                'size': (3, 3, 0.2),
+                'texture': 'concrete.jpg',
+                'movement': {
+                    'points': [(-25, 26, 28), (-17, 26, 28)],
+                    'duration': 3,
+                }
+            },
+            {
+                'name': 'm5',
+                'pos': (-30, 32, 32),
+                'size': (3, 3, 0.2),
+                'texture': 'concrete.jpg',
+                'movement': {
+                    'points': [(-30, 32, 32), (-12, 32, 32)],
+                    'duration': 2,
+                }
+            },
+            {
+                'name': 's3',
+                'pos': (-40, 40, 36),
+                'size': (25, 25, 0.2),
+                'texture': 'yob.png',
+            },
+            {
+                'name': 'shuttle',
+                'pos': (15, 15, 6),
+                'size': (2, 5, 1),
+                'texture': 'wood_plank.png',
+                'movement': {
+                    'points': [(13, 13, 6), (10, 11, 6), (20, 10, 6), (7, 8, 6)],
+                    'duration': 6,
+                }
+            },
+            {
+                'name': 'shuttle1',
+                'pos': (13, 13, 6),
+                'size': (3, 5, 0.2),
+                'texture': 'concrete.jpg',
+                'rotation': { 'axis': (1, 0, 0), 'speed': 600 },
             },
         ]
 

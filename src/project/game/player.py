@@ -32,7 +32,8 @@ class PlayerController(DirectObject):
 
         # root & visual model
         self.player_root = self.render.attachNewNode("PlayerRoot")
-        self.player_root.setPos(0, 0, 5.0)
+        self.player_root.setPos(-40, 40, 36)
+        # self.player_root.setPos(0, 0, 5.0)
         model, anims = create_player_model("PlayerVisualModel")
         if not model:
             raise RuntimeError("failed to load player model")
@@ -61,8 +62,8 @@ class PlayerController(DirectObject):
         self._shift_tap_threshold  = 0.3
 
         # ---- JUMP & DOUBLE-JUMP ----
-        self.jump_force         = self.player_const.get('JUMP_FORCE', 8.0)
-        self.gravity            = self.player_const.get('GRAVITY', 20.0)
+        self.jump_force         = 10.0
+        self.gravity            = 20.0
         self.vertical_velocity  = 0.0
         self.is_grounded        = False
         self.air_time           = 0.0
@@ -313,8 +314,9 @@ class PlayerController(DirectObject):
         else:
             # still in air
             if prev_grounded:
-                # just left ground
+                # just left ground (stepped/fell off): reset air timer & allow one jump
                 self.air_time = 0.0
+                self.can_double_jump = True
             else:
                 self.air_time += dt
             self.is_grounded = False
