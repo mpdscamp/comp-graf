@@ -48,7 +48,7 @@ class OptionsMenuUI:
         ))
         self.sensitivity_slider = DirectSlider(
             parent=self.frame,
-            pos=(0.3, 0, 0.5),
+            pos=(0.3, 0, 0.475),
             scale=0.4,
             value=initial_sens_normalized,
             pageSize=0.1,
@@ -68,7 +68,7 @@ class OptionsMenuUI:
         )
 
         self.fov_label = DirectLabel(
-            parent=self.frame, text="Field of View (FOV):", scale=0.07, pos=(-0.6, 0, 0.45),
+            parent=self.frame, text="Field of View (FOV):", scale=0.07, pos=(-0.6, 0, 0.4),
             text_fg=(1, 1, 1, 1), text_align=TextNode.ALeft, frameColor=(0, 0, 0, 0)
         )
         self.min_fov = self.app.settings_manager.get_constant('camera', 'MIN_FOV', 60.0)
@@ -78,7 +78,7 @@ class OptionsMenuUI:
         initial_fov_normalized = max(0, min(1, (initial_fov - self.min_fov) / fov_range))
 
         self.fov_slider = DirectSlider(
-            parent=self.frame, pos=(0.3, 0, 0.45), scale=0.4,
+            parent=self.frame, pos=(0.3, 0, 0.375), scale=0.4,
             value=initial_fov_normalized, pageSize=0.1, thumb_relief=1,
             thumb_frameColor=(0.6, 0.8, 0.6, 1),
             frameColor=(0.2, 0.5, 0.3, 0.7),
@@ -107,7 +107,7 @@ class OptionsMenuUI:
              initial_item_index = 2
         self.resolution_menu = DirectOptionMenu(
             parent=self.frame,
-            pos=(0.3, 0, 0.31),
+            pos=(0.3, 0, 0.275),
             scale=0.08,
             items=self.resolutions,
             initialitem=initial_item_index,

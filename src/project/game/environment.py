@@ -90,7 +90,7 @@ class EnvironmentManager:
             {
                 'name': 'm1',
                 'pos': (-25, 2, 22),
-                'size': (4, 4, 0.2),
+                'size': (3, 3, 0.2),
                 'texture': 'concrete.jpg',
                 'movement': {
                     'points': [(-25, 2, 22), (-17, 2, 22)],
@@ -100,7 +100,7 @@ class EnvironmentManager:
             {
                 'name': 'm2',
                 'pos': (-25, 10, 24),
-                'size': (4, 4, 0.2),
+                'size': (3, 3, 0.2),
                 'texture': 'concrete.jpg',
                 'movement': {
                     'points': [(-25, 10, 24), (-17, 10, 24)],
@@ -110,7 +110,7 @@ class EnvironmentManager:
             {
                 'name': 'm3',
                 'pos': (-25, 18, 26),
-                'size': (4, 4, 0.2),
+                'size': (3, 3, 0.2),
                 'texture': 'concrete.jpg',
                 'movement': {
                     'points': [(-25, 18, 26), (-17, 18, 26)],
@@ -120,7 +120,7 @@ class EnvironmentManager:
             {
                 'name': 'm4',
                 'pos': (-25, 26, 28),
-                'size': (3, 3, 0.2),
+                'size': (4, 4, 0.2),
                 'texture': 'concrete.jpg',
                 'movement': {
                     'points': [(-25, 26, 28), (-17, 26, 28)],
@@ -130,7 +130,7 @@ class EnvironmentManager:
             {
                 'name': 'm5',
                 'pos': (-30, 32, 32),
-                'size': (3, 3, 0.2),
+                'size': (4, 4, 0.2),
                 'texture': 'concrete.jpg',
                 'movement': {
                     'points': [(-30, 32, 32), (-12, 32, 32)],
@@ -227,7 +227,7 @@ class EnvironmentManager:
             },
             {
                 'name': 's8',
-                'pos': (-20, 9, 70),
+                'pos': (-20, 8, 70),
                 'size': (10, 10, 0.2),
                 'texture': 'PASTEL.png',
             },

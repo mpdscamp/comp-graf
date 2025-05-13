@@ -25,7 +25,7 @@ class MainMenuUI:
 
         self.title = DirectLabel(
             parent=self.frame,
-            text="Abstract Ascent",
+            text="Ogre Ascent",
             scale=0.1,
             pos=(0, 0, 0.5),
             text_fg=(1, 1, 1, 1),
