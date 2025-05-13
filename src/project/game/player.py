@@ -13,6 +13,10 @@ from direct.showbase.DirectObject import DirectObject
 from ..utils.geometry_utils import create_player_model
 
 globalClock = ClockObject.getGlobalClock()
+MASK_ENVIRONMENT = BitMask32(1)   # ← platforms, terrain, walls, etc.
+MASK_PLAYER      = BitMask32(2)   # ← your capsule
+MASK_TRIGGER     = BitMask32(4)   # ← reactive triggers
+MASK_CAMERA      = BitMask32(8)   # ← camera collisions if any
 
 class PlayerController(DirectObject):
 
@@ -90,10 +94,10 @@ class PlayerController(DirectObject):
         player_tag = self.collision_consts.get('TAG_PLAYER', 'Player')
         player_height = self.player_const.get('HEIGHT', 1.8)
         player_radius = self.player_const.get('RADIUS', 0.4)
-        mask_player = self.collision_consts.get('MASK_PLAYER', BitMask32(2))
-        mask_ground = self.collision_consts.get('MASK_GROUND', BitMask32(1))
-        mask_trigger = self.collision_consts.get('MASK_REACTIVE_TRIGGER', BitMask32(4))
-        mask_camera = self.collision_consts.get('MASK_CAMERA', BitMask32(8))
+        mask_ground = MASK_ENVIRONMENT
+        mask_player = MASK_PLAYER        
+        mask_trigger = MASK_TRIGGER
+        mask_camera = MASK_CAMERA
         default_ground_check_dist = self.player_const.get('GROUND_CHECK_DIST', 0.3)
 
         self.collider_node = CollisionNode(player_tag)
@@ -104,7 +108,6 @@ class PlayerController(DirectObject):
         )
         self.collider_node.addSolid(capsule_shape)
         self.collider_node.setFromCollideMask(mask_player)
-        self.collider_node.setIntoCollideMask(mask_trigger | mask_camera)
         self.collider_np = self.player_root.attachNewNode(self.collider_node)
 
         self.pusher = CollisionHandlerPusher()

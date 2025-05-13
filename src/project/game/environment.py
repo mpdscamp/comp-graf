@@ -1,6 +1,7 @@
 import os
 from panda3d.core import (
-    Texture, TextureStage, BitMask32, Vec3, ClockObject, Filename
+    NodePath, Texture, TextureStage, BitMask32, Vec3,
+    ClockObject, Filename, CollisionNode, CollisionBox, Point3
 )
 from direct.interval.IntervalGlobal import Sequence
 
@@ -9,20 +10,24 @@ from .reactive_manager import ReactiveManager
 
 # get the global clock for consistent timing
 globalClock = ClockObject.getGlobalClock()
-
-
+MASK_ENVIRONMENT = BitMask32(1)   # ← platforms, terrain, walls, etc.
+MASK_PLAYER      = BitMask32(2)   # ← your capsule
+MASK_TRIGGER     = BitMask32(4)   # ← reactive triggers
+MASK_CAMERA      = BitMask32(8)   # ← camera collisions if any
 
 class EnvironmentManager:
     """
     Top-level manager for the game environment, responsible for initializing
-    static and reactive components.
+    static and reactive components, and injecting a simple parkour map.
     """
     def __init__(self, app):
         self.app = app
         self.render = app.render
         self.loader = app.loader
 
+        # roots for static and reactive elements
         self.static_root = self.render.attachNewNode("StaticEnvironmentRoot")
+        # disable lighting for all static elements to preserve true texture colors
         self.reactive_root = self.render.attachNewNode("ReactiveEnvironmentRoot")
 
         self.static_manager = StaticEnvironmentManager(app, self.static_root)
@@ -50,7 +55,7 @@ class EnvironmentManager:
                 'name': 'launch_pad',
                 'pos': (5, 10, 2),
                 'size': (2, 1, 0.2),
-                'texture': 'wood_plank.png',  # filename only
+                'texture': 'wood_plank.png',
             },
             # rotating spinner
             {
@@ -79,31 +84,45 @@ class EnvironmentManager:
     def _spawn_platform(self, cfg):
         """
         Create a rectangular platform from a unit cube, apply texture from your
-        project/textures folder, and add behaviors.
+        project/textures folder, and add behaviors. Also generate a CollisionBox for physics.
         """
         # load a simple cube model and scale it
         platform = self.loader.loadModel('models/box')
         platform.reparentTo(self.static_root)
         platform.setName(cfg.get('name', 'platform'))
         platform.setPos(*cfg['pos'])
-        platform.setScale(*cfg['size'])
-        platform.setCollideMask(BitMask32.bit(1))
+        sx, sy, sz = cfg['size']
+        platform.setScale(sx, sy, sz)
 
-        # determine full texture path
+        # enable collision on the visual geometry
+        platform.setCollideMask(MASK_ENVIRONMENT)
+        
         if cfg.get('texture'):
-            # locate textures directory relative to this file:
-            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'textures'))
+            base_dir = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), '..', 'textures')
+            )
             tex_file = cfg['texture']
             tex_path = os.path.join(base_dir, tex_file)
-            # fallback to raw path if not found
             if not os.path.isfile(tex_path):
                 tex_path = cfg['texture']
-            # load texture
             tex = self.loader.loadTexture(Filename.fromOsSpecific(tex_path))
+            # clamp to avoid tiling and preserve image
             tex.setWrapU(Texture.WMClamp)
             tex.setWrapV(Texture.WMClamp)
+            # ensure no lighting/material distortion
+            platform.setMaterialOff()
+            platform.clearColorScale()
+            platform.clearTexture()
+            
+            print("  final color scale:", platform.getColorScale())
+            print("  material:", platform.getMaterial())
+
+
             stage = TextureStage('ts')
+            stage.setMode(TextureStage.MReplace)
             platform.setTexture(stage, tex)
+            # solid white to avoid vertex color mixing
+            platform.setColor(1, 1, 1, 1)
 
         # add rotation behavior
         if 'rotation' in cfg:
