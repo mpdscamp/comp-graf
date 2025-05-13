@@ -32,8 +32,10 @@ class PlayerController(DirectObject):
 
         # root & visual model
         self.player_root = self.render.attachNewNode("PlayerRoot")
-        self.player_root.setPos(-40, 40, 36)
-        # self.player_root.setPos(0, 0, 5.0)
+        self.player_root.setPos(-14, 40, 75)
+        # self.player_root.setPos(-31.5, 60.5, 48)
+        # self.player_root.setPos(-23, 45, 38)
+        # self.player_root.setPos(0, 0, 3)
         model, anims = create_player_model("PlayerVisualModel")
         if not model:
             raise RuntimeError("failed to load player model")
