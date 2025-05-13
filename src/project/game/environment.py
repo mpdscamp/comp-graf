@@ -1,7 +1,6 @@
 import os
 from panda3d.core import (
-    NodePath, Texture, TextureStage, BitMask32, Vec3,
-    ClockObject, Filename, CollisionNode, CollisionBox, Point3
+    BitMask32, Vec3, ClockObject, Filename, Texture, TextureStage, PNMImage
 )
 from direct.interval.IntervalGlobal import Sequence
 
@@ -27,6 +26,7 @@ class EnvironmentManager:
 
         # roots for static and reactive elements
         self.static_root = self.render.attachNewNode("StaticEnvironmentRoot")
+        self.platforms_root = self.render.attachNewNode("PlatformsRoot")
         # disable lighting for all static elements to preserve true texture colors
         self.reactive_root = self.render.attachNewNode("ReactiveEnvironmentRoot")
 
@@ -82,47 +82,42 @@ class EnvironmentManager:
             self._spawn_platform(cfg)
 
     def _spawn_platform(self, cfg):
-        """
-        Create a rectangular platform from a unit cube, apply texture from your
-        project/textures folder, and add behaviors. Also generate a CollisionBox for physics.
-        """
-        # load a simple cube model and scale it
+        # load the cube
         platform = self.loader.loadModel('models/box')
-        platform.reparentTo(self.static_root)
-        platform.setName(cfg.get('name', 'platform'))
+        platform.reparentTo(self.platforms_root)
         platform.setPos(*cfg['pos'])
         sx, sy, sz = cfg['size']
         platform.setScale(sx, sy, sz)
 
-        # enable collision on the visual geometry
+        # 1) turn off all lighting/shaders so nothing else tints it
+        platform.setShaderOff()
+        platform.setLightOff()
+
+        # 2) create a 1×1 solid-white texture on the fly
+        img = PNMImage(1, 1, 4)
+        img.setXelA(0, 0, 1, 1, 1, 1)
+        white_tex = Texture()
+        white_tex.load(img)
+
+        # 3) apply it with a REPLACE texture stage (this *replaces* any vertex colour)
+        ts = TextureStage('flat_replace')
+        ts.setMode(TextureStage.MReplace)
+        platform.setTexture(ts, white_tex)
+
+        # now you have a perfect 3D cube (all 6 faces) with zero noise on it
         platform.setCollideMask(MASK_ENVIRONMENT)
-        
+
         if cfg.get('texture'):
-            base_dir = os.path.abspath(
-                os.path.join(os.path.dirname(__file__), '..', 'textures')
-            )
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'textures'))
             tex_file = cfg['texture']
             tex_path = os.path.join(base_dir, tex_file)
             if not os.path.isfile(tex_path):
                 tex_path = cfg['texture']
             tex = self.loader.loadTexture(Filename.fromOsSpecific(tex_path))
-            # clamp to avoid tiling and preserve image
-            tex.setWrapU(Texture.WMClamp)
-            tex.setWrapV(Texture.WMClamp)
             # ensure no lighting/material distortion
-            platform.setMaterialOff()
-            platform.clearColorScale()
-            platform.clearTexture()
-            
-            print("  final color scale:", platform.getColorScale())
-            print("  material:", platform.getMaterial())
-
-
             stage = TextureStage('ts')
             stage.setMode(TextureStage.MReplace)
             platform.setTexture(stage, tex)
-            # solid white to avoid vertex color mixing
-            platform.setColor(1, 1, 1, 1)
 
         # add rotation behavior
         if 'rotation' in cfg:
