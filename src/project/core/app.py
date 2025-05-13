@@ -9,6 +9,7 @@ from ..ui.main_menu import MainMenuUI
 from ..ui.pause_menu import PauseMenuUI
 from ..ui.options_menu import OptionsMenuUI
 from ..ui.hud import HeadsUpDisplayUI
+from ..ui.game_over import GameOverUI
 from ..utils.settings import SettingsManager
 from ..game.camera import CameraController
 import sys
@@ -44,6 +45,7 @@ class ReactiveApp(ShowBase):
         self.pause_menu = PauseMenuUI(self)
         self.options_menu = OptionsMenuUI(self)
         self.hud = HeadsUpDisplayUI(self)
+        self.game_over = GameOverUI(self)
 
         self.main_menu.show()
         self.accept('escape', self.handle_escape_key)
@@ -81,6 +83,7 @@ class ReactiveApp(ShowBase):
         self.main_menu.hide()
         self.options_menu.hide()
         self.pause_menu.hide()
+        self.game_over.hide()
 
         from ..game.environment import EnvironmentManager
         from ..game.player import PlayerController
@@ -227,6 +230,7 @@ class ReactiveApp(ShowBase):
         if hasattr(self, 'pause_menu') and self.pause_menu: self.pause_menu.cleanup()
         if hasattr(self, 'options_menu') and self.options_menu: self.options_menu.cleanup()
         if hasattr(self, 'hud') and self.hud: self.hud.cleanup()
+        if hasattr(self, 'game_over') and self.game_over: self.game_over.cleanup()
 
         if hasattr(self, 'settings_manager') and self.settings_manager:
              self.settings_manager.save_settings()

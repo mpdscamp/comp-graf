@@ -26,80 +26,79 @@ class PlayerController(DirectObject):
         self.render = app.render
         self.taskMgr = app.taskMgr
 
-        # load constants
-        self.player_const = self.app.settings_manager.constants.get('player', {})
-        self.collision_const = self.app.settings_manager.constants.get('collision', {})
+        self.player_consts = self.app.settings_manager.constants.get('player', {})
+        self.collision_consts = self.app.settings_manager.constants.get('collision', {})
 
-        # root & visual model
         self.player_root = self.render.attachNewNode("PlayerRoot")
-        self.player_root.setPos(-40, 40, 36)
-        # self.player_root.setPos(0, 0, 5.0)
-        model, anims = create_player_model("PlayerVisualModel")
-        if not model:
+        self.player_root.setPos(0, 0, 5.0)
+        print(f"PlayerRoot (Physics Root at Feet) created at {self.player_root.getPos()}")
+
+        self.player_model, self.player_anims = create_player_model("PlayerVisualModel")
+        if not self.player_model:
             raise RuntimeError("failed to load player model")
-        self.player_model, self.player_anims = model, anims
+        
         self.player_model.reparentTo(self.player_root)
-
-        # ---- MOVEMENT / ROTATION ----
-        self.move_speed      = 4.0
-        self.turn_rate       = self.player_const.get('TURN_RATE', 360.0)
+        self.move_speed = 5.0
+        self.sprint_multiplier = 1.7  # Sprint speed multiplier
+        self.dash_force = 15.0  # Dash speed
+        self.dash_duration = 0.3  # How long the dash lasts in seconds
+        self.dash_cooldown = 2.0  # Cooldown between dashes in seconds
+        self.current_dash_cooldown = 0.0  # Current dash cooldown timer
+        self.is_dashing = False  # Flag to track if currently dashing
+        self.dash_timer = 0.0  # Timer to track dash duration
+        self.dash_direction = Vec3(0)  # Direction of the dash
+        self.is_sprinting = False  # Flag to track if sprinting
+        
+        self.turn_rate = self.player_consts.get('TURN_RATE', 360.0)
         self.current_heading = 0.0
-        self.target_heading  = 0.0
-        self.is_walking      = False
-        self._space_last     = False
+        self.target_heading = 0.0
+        self.move_forward = False
+        self.move_backward = False
+        self.strafe_left = False
+        self.strafe_right = False
+        self.is_walking = False
 
-
-        # ---- SPRINT & DASH ----
-        self.sprint_multiplier     = 1.5
-        self.is_sprinting          = False
-
-        self.dash_speed_multiplier = 6.0
-        self.dash_duration         = 0.18
-        self.dash_cooldown         = 1.0
-        self._dash_timer           = 0.0
-        self._dash_cd_timer        = 0.0
-        self._last_shift_time      = 0.0
-        self._shift_tap_threshold  = 0.3
-
-        # ---- JUMP & DOUBLE-JUMP ----
-        self.jump_force         = 10.0
-        self.gravity            = 20.0
-        self.vertical_velocity  = 0.0
-        self.is_grounded        = False
-        self.air_time           = 0.0
-
-        # after any jump, ignore ground for this many secs
-        self.jump_ignore_time   = 0.2
-        self._jump_ignore_timer = 0.0
-
-        # allow one double jump per air session
-        self.can_double_jump    = False
-
-        # ---- COLLISION SETUP (unchanged) ----
-        self.collision_consts = self.collision_const
+        self.collider_node = None
+        self.collider_np = None
+        self.pusher = None
+        self.ground_ray_node = None
+        self.ground_ray_np = None
+        self.ground_handler = None
         self._setup_collision()
-        self._pusher_enabled = True
 
-        # ---- INPUT ----
+        self.dt_buffer_size = 5
+        self.dt_buffer = deque([1.0/60.0] * self.dt_buffer_size, maxlen=self.dt_buffer_size)
+
+        self.jump_force = self.player_consts.get('JUMP_FORCE', 8.0)
+        self.gravity = self.player_consts.get('GRAVITY', 20.0)
+        self.vertical_velocity = 0.0
+        self.is_grounded = False
+        self.air_time = 0.0
+        self.ground_check_dist = self.player_consts.get('GROUND_CHECK_DIST', 0.3)
+        self.jump_cooldown = 0
+        self.debug_mode = True
+        
+        # Death handling
+        self.is_dead = False
+        self.death_height = -20.0  # Death trigger when player falls below this height
+        self.max_air_time = 5.0     # Death trigger when player falls for this long
+
         self._setup_input()
 
-        # ---- SMOOTH TIMING ----
-        self.dt_buffer = deque([1/60]*5, maxlen=5)
-
-        # ---- START UPDATE TASK ----
         self.taskMgr.add(self._update_movement, "playerMoveTask", sort=20)
+
         print("PlayerController initialized.")
 
     def _setup_collision(self):
         print("Setting up player collision...")
         player_tag = self.collision_consts.get('TAG_PLAYER', 'Player')
-        player_height = self.player_const.get('HEIGHT', 1.8)
-        player_radius = self.player_const.get('RADIUS', 0.4)
+        player_height = self.player_consts.get('HEIGHT', 1.8)
+        player_radius = self.player_consts.get('RADIUS', 0.4)
         mask_ground = MASK_ENVIRONMENT
         mask_player = MASK_PLAYER        
         mask_trigger = MASK_TRIGGER
         mask_camera = MASK_CAMERA
-        default_ground_check_dist = self.player_const.get('GROUND_CHECK_DIST', 0.3)
+        default_ground_check_dist = self.player_consts.get('GROUND_CHECK_DIST', 0.3)
 
         self.collider_node = CollisionNode(player_tag)
         capsule_shape = CollisionCapsule(
@@ -168,20 +167,32 @@ class PlayerController(DirectObject):
             self.is_sprinting = False
 
     def jump(self):
-        """ Handles jump and one double-jump. """
-        # first jump
-        if self.is_grounded and self._jump_ignore_timer <= 0:
-            self.vertical_velocity = self.jump_force
-            self.is_grounded       = False
-            self.can_double_jump   = True
-            self._jump_ignore_timer = self.jump_ignore_time
-            # lift slightly to avoid immediate ground‐hit
+        """Initiates a jump if the player is grounded."""
+        if self.debug_mode:
+            print(f"Jump button pressed. Is grounded: {self.is_grounded}, Cooldown: {self.jump_cooldown}, Sprinting: {self.is_sprinting}")
+        
+        if self.is_grounded and self.jump_cooldown <= 0:
+            if self.debug_mode:
+                print(f"Starting jump with force: {self.jump_force}")
+            
+            # Apply additional jump force when sprinting
+            jump_force = self.jump_force
+            if self.is_sprinting:
+                jump_force *= 1.2  # Optional: Give a bit more height to sprint jumps
+                if self.debug_mode:
+                    print(f"Sprint jump with increased force: {jump_force}")
+            
+            self.vertical_velocity = jump_force
+            self.is_grounded = False
+            
             self.player_root.setZ(self.player_root.getZ() + 0.2)
+            self.jump_cooldown = 5
+            
+            self.air_time = 0.0
+            if self.debug_mode:
+                print(f"Set vertical velocity to: {self.vertical_velocity}")
+                print(f"Initial position: {self.player_root.getZ():.2f}")
 
-        # double jump
-        elif not self.is_grounded and self.can_double_jump:
-            self.vertical_velocity = self.jump_force
-            self.can_double_jump   = False
 
     def _check_ground(self):
         """
@@ -217,127 +228,194 @@ class PlayerController(DirectObject):
         return False, None
 
     def _update_movement(self, task):
-        # skip if paused / invalid
-        if not self.app or self.app.game_paused or self.player_root.isEmpty():
+        if not self.app or self.app.game_paused or self.player_root.isEmpty() or self.is_dead:
             return Task.cont
 
-        # compute smoothed dt
         raw_dt = globalClock.getDt()
-        raw_dt = max(0, min(raw_dt, 0.1))
+        if raw_dt == 0: return Task.cont
+        if raw_dt > 0.1: raw_dt = 0.1
+
         self.dt_buffer.append(raw_dt)
         dt = sum(self.dt_buffer) / len(self.dt_buffer)
 
-        # decrement all timers
-        if self._dash_timer   > 0: self._dash_timer   -= dt
-        if self._dash_cd_timer > 0: self._dash_cd_timer -= dt
-        if self._jump_ignore_timer > 0: self._jump_ignore_timer -= dt
+        pos_before_update = self.player_root.getPos()
+        was_grounded = self.is_grounded
 
-        # apply gravity when airborne
+        # Update timers and cooldowns
+        if self.jump_cooldown > 0:
+            self.jump_cooldown -= 1
+            if self.debug_mode:
+                print(f"Jump cooldown: {self.jump_cooldown}, Height: {self.player_root.getZ():.2f}")
+        
+        # Update dash cooldown
+        if self.current_dash_cooldown > 0:
+            self.current_dash_cooldown -= dt
+            if self.current_dash_cooldown < 0:
+                self.current_dash_cooldown = 0
+                if self.debug_mode:
+                    print("Dash cooldown reset - ready to dash again")
+        
+        # Update dash timer if dashing
+        if self.is_dashing:
+            self.dash_timer -= dt
+            if self.dash_timer <= 0:
+                self.is_dashing = False
+                if self.debug_mode:
+                    print("Dash complete")
+
         if not self.is_grounded or self.vertical_velocity > 0:
             self.vertical_velocity -= self.gravity * dt
 
-        # --- build move_direction by polling WASD each frame ---
-        mw = self.app.mouseWatcherNode
-        cam_q   = self.app.camera.getQuat(self.render)
-        cam_fwd = cam_q.getForward();  cam_fwd.z = 0; cam_fwd.normalize()
-        cam_right = cam_q.getRight(); cam_right.z = 0; cam_right.normalize()
+        # Determine movement direction
+        move_direction = Vec3(0)
+        is_moving = False
+        if self.app.camera:
+            cam_quat = self.app.camera.getQuat(self.render)
+            cam_forward = cam_quat.getForward()
+            cam_right = cam_quat.getRight()
+            cam_forward.z = 0
+            cam_right.z = 0
+            cam_forward.normalize()
+            cam_right.normalize()
 
-        move_dir = Vec3(0)
-        if mw.is_button_down(KeyboardButton.ascii_key('w')): move_dir += cam_fwd
-        if mw.is_button_down(KeyboardButton.ascii_key('s')): move_dir -= cam_fwd
-        if mw.is_button_down(KeyboardButton.ascii_key('a')): move_dir -= cam_right
-        if mw.is_button_down(KeyboardButton.ascii_key('d')): move_dir += cam_right
+            if self.move_forward: move_direction += cam_forward
+            if self.move_backward: move_direction -= cam_forward
+            if self.strafe_left: move_direction -= cam_right
+            if self.strafe_right: move_direction += cam_right
 
-        is_moving = move_dir.lengthSquared() > 0.01
-        if is_moving:
-            move_dir.normalize()
-            # smooth turn-to-direction
-            self.target_heading = math.degrees(math.atan2(-move_dir.x, move_dir.y))
-            cur_h = self.player_root.getH()
-            d_h = (self.target_heading - cur_h + 180) % 360 - 180
+            is_moving = move_direction.lengthSquared() > 0.01
+
+        # Turn the player model to face the movement direction
+        if is_moving and not self.is_dashing:
+            move_direction.normalize()
+            self.target_heading = math.degrees(math.atan2(-move_direction.x, move_direction.y))
+
+            current_h = self.player_root.getH()
+            delta_h = (self.target_heading - current_h + 180) % 360 - 180
             max_turn = self.turn_rate * dt
-            turn_amt = max(-max_turn, min(max_turn, d_h))
-            new_h = (cur_h + turn_amt) % 360
+            turn_amount = max(-max_turn, min(max_turn, delta_h))
+            new_h = (current_h + turn_amount) % 360
             self.player_root.setH(new_h)
             self.current_heading = new_h
 
-        # --- decide horizontal speed & direction ---
-        if self._dash_timer > 0:
-            # dash: even from standstill, dash forward
-            if not is_moving:
-                dash_dir = self.player_root.getQuat(self.render).getForward()
-                dash_dir.z = 0; dash_dir.normalize()
-            else:
-                dash_dir = move_dir
-            speed = self.move_speed * self.dash_speed_multiplier
-            horizontal_delta = dash_dir * speed * dt
-
-        elif is_moving and self.is_sprinting:
-            speed = self.move_speed * self.sprint_multiplier
-            horizontal_delta = move_dir * speed * dt
-
+        # Calculate horizontal movement
+        horizontal_move_delta = Vec3(0)
+        
+        # Dash takes precedence over normal movement
+        if self.is_dashing:
+            horizontal_move_delta = self.dash_direction * self.dash_force * dt
         elif is_moving:
-            horizontal_delta = move_dir * self.move_speed * dt
-
+            # Apply sprint multiplier if sprinting
+            current_speed = self.move_speed
+            if self.is_sprinting:
+                current_speed *= self.sprint_multiplier
+                
+            horizontal_move_delta = move_direction * current_speed * dt
         else:
-            horizontal_delta = Vec3(0)
+            horizontal_move_delta = Vec3(0)
 
-        # vertical movement
-        vertical_delta = Vec3(0, 0, self.vertical_velocity * dt)
+        # Calculate vertical movement (gravity/jumping)
+        vertical_move_delta = Vec3(0, 0, self.vertical_velocity * dt)
 
-        # apply movement
-        pos_before = self.player_root.getPos()
-        self.player_root.setPos(pos_before + horizontal_delta + vertical_delta)
+        # Combine movements
+        final_delta = horizontal_move_delta + vertical_move_delta
+        self.player_root.setPos(pos_before_update + final_delta)
 
-        # --- ground check & landing detection ---
-        prev_grounded = self.is_grounded
-
-        # skip ground‐hits while in jump‐ignore window OR while dashing
-        if self._jump_ignore_timer <= 0:
-            grounded, ground_z = self._check_ground()
+        # Ground detection
+        if self.jump_cooldown > 0:
+            is_now_grounded = False
+            ground_z_world = None
+            if self.debug_mode and self.vertical_velocity > 0:
+                print(f"Skipping ground check - jump cooldown active. Current height: {self.player_root.getZ():.2f}")
         else:
-            grounded, ground_z = False, None
+            is_now_grounded, ground_z_world = self._check_ground()
 
-        if grounded:
-            # snap to exactly the floor height
-            self.player_root.setZ(ground_z)
+        # Ground handling
+        if is_now_grounded:
+            current_z = self.player_root.getZ()
+            z_diff = ground_z_world - current_z
+            if z_diff > 0.001 or (not was_grounded and self.vertical_velocity < 0):
+                 self.player_root.setZ(ground_z_world)
+                 if self.vertical_velocity < -0.1:
+                     pass
+
             if self.vertical_velocity <= 0:
-                self.vertical_velocity = 0
-
-            # only on the *transition* from air→ground do we reset timers
-            if not prev_grounded:
-                self.air_time        = 0.0
-                self.can_double_jump = False
-                self._dash_cd_timer  = 0.0
-                # note: we do *not* zero out self._dash_timer here—let it finish!
+                 self.vertical_velocity = 0
             self.is_grounded = True
+            self.air_time = 0.0
         else:
-            # still in air
-            if prev_grounded:
-                # just left ground (stepped/fell off): reset air timer & allow one jump
+            if was_grounded and self.jump_cooldown <= 0:
                 self.air_time = 0.0
-                self.can_double_jump = True
+                if self.vertical_velocity <= 0 and self.debug_mode:
+                     print(f"Left ground (walked off edge?). Vertical velocity: {self.vertical_velocity:.2f}")
             else:
                 self.air_time += dt
             self.is_grounded = False
+            
+            # Check for death conditions
+            current_height = self.player_root.getZ()
+            
+            # Death by falling below the death height threshold
+            if current_height < self.death_height:
+                if self.debug_mode:
+                    print(f"Player died: Fell below death height {self.death_height}")
+                self.die("You fell into the void!")
+                return Task.cont
+                
+            # Death by falling for too long
+            if self.air_time > self.max_air_time and self.vertical_velocity < 0:
+                if self.debug_mode:
+                    print(f"Player died: Fell for too long ({self.air_time:.2f} seconds)")
+                self.die("You fell to your death!")
+                return Task.cont
 
-        # --- walking animation ---
+        # Animation handling
         if isinstance(self.player_model, Actor):
-            anim = self.player_anims[0]
+            walk_anim = self.player_anims[0]
             if is_moving:
                 if not self.is_walking:
-                    self.player_model.loop(anim)
+                    self.player_model.loop(walk_anim)
                     self.is_walking = True
-                rate = 1.0
-                rate = 3.0 if self.is_sprinting else rate
-                rate = 10 if self._dash_timer > 0 else rate
-                self.player_model.setPlayRate(rate, anim)
             else:
                 if self.is_walking:
                     self.player_model.unloadAnims()
                     self.is_walking = False
-
+        
         return Task.cont
+        
+    def die(self, message="You died!"):
+        """Handle player death"""
+        if self.is_dead:
+            return
+            
+        print(f"Player died: {message}")
+        self.is_dead = True
+        
+        # Stop all player movement
+        self.move_forward = False
+        self.move_backward = False
+        self.strafe_left = False
+        self.strafe_right = False
+        self.vertical_velocity = 0
+        
+        # Get the elapsed time from the HUD
+        elapsed_time = 0
+        if hasattr(self.app, 'hud') and self.app.hud:
+            elapsed_time = self.app.hud.get_elapsed_time()
+            
+        # Show the game over screen with the time survived
+        if hasattr(self.app, 'game_over') and self.app.game_over:
+            self.app.game_over.show(elapsed_time, message)
+            # Hide HUD but keep the game technically active
+            if hasattr(self.app, 'hud') and self.app.hud:
+                if hasattr(self.app.hud, 'hide_all'):
+                    self.app.hud.hide_all()
+                elif hasattr(self.app.hud, 'hide'):
+                    self.app.hud.hide()
+                
+        # Set menu mouse properties
+        if hasattr(self.app, '_set_menu_mouse_properties'):
+            self.app._set_menu_mouse_properties()
 
     def get_collider_nodepath(self):
         return self.collider_np

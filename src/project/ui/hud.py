@@ -6,6 +6,11 @@ class HeadsUpDisplayUI:
     def __init__(self, app):
         self.app = app
 
+        # Timer tracking
+        self.game_time = 0.0
+        self.start_time = 0.0
+        self.is_timer_active = False
+
         self.minimap_anchor = self.app.aspect2d.attachNewNode("MinimapAnchor")
 
         self.minimap_frame_radius = 0.2
@@ -33,66 +38,21 @@ class HeadsUpDisplayUI:
             align=TextNode.ACenter
         )
         self.interaction_prompt.hide()
-
-
-        self.minimap = DirectFrame(
-            parent=self.minimap_anchor,
-            frameSize=(-self.minimap_frame_radius, self.minimap_frame_radius,
-                       -self.minimap_frame_radius, self.minimap_frame_radius),
-            frameColor=(0.1, 0.1, 0.1, 0.8),
-            pos=(0, 0, 0),
+        
+        # Timer display
+        self.timer_display = OnscreenText(
+            text="Time: 0:00",
+            pos=(-aspect_ratio + 0.15, 0.9),  # Top-left corner
+            scale=0.05,
+            fg=(1, 1, 1, 0.9),
+            shadow=(0, 0, 0, 0.5),
+            mayChange=True,
+            parent=self.app.aspect2d,
+            align=TextNode.ALeft
         )
-        self.minimap.setTransparency(True)
-
-        indicator_radius = 0.01
-        self.player_indicator = DirectFrame(
-            parent=self.minimap,
-            frameSize=(-indicator_radius, indicator_radius, -indicator_radius, indicator_radius),
-            frameColor=(1, 0, 0, 1),
-            pos=(0, 0, 0)
-        )
-
-        label_offset = 0.03
-        label_scale = 0.04
-        label_color = (1, 1, 1, 0.9)
-        label_props = {
-            'scale': label_scale,
-            'fg': label_color,
-            'parent': self.minimap_anchor,
-            'align': TextNode.ACenter,
-            'shadow': (0, 0, 0, 0.5)
-        }
-
-        self.north_label = OnscreenText(
-            text="N",
-            pos=(0, self.minimap_frame_radius + label_offset - 0.02, 0),
-            **label_props
-        )
-        self.south_label = OnscreenText(
-            text="S",
-            pos=(0, -self.minimap_frame_radius - label_offset, 0),
-            **label_props
-        )
-        self.east_label = OnscreenText(
-            text="E",
-             pos=(self.minimap_frame_radius + label_offset - 0.01, 0, 0),
-             **label_props
-        )
-        self.west_label = OnscreenText(
-            text="W",
-            pos=(-self.minimap_frame_radius - label_offset, 0, 0),
-            **label_props
-        )
-
-        self.minimap_labels = [self.north_label, self.south_label, self.east_label, self.west_label]
-
-        for label in self.minimap_labels:
-            if label:
-                label.setDepthTest(False)
-                label.setDepthWrite(False)
-                label.stash()
-
-        self.minimap.stash()
+        self.timer_display.setDepthTest(False)
+        self.timer_display.setDepthWrite(False)
+        self.timer_display.hide()
 
     def show(self):
         if hasattr(self, 'crosshair') and self.crosshair: self.crosshair.show()
